@@ -8,7 +8,9 @@ import com.revrobotics.RelativeEncoder;
 import com.revrobotics.CANSparkBase.IdleMode;
 import com.revrobotics.CANSparkLowLevel.MotorType;
 
-import edu.wpi.first.math.controller.PIDController;
+import edu.wpi.first.math.controller.ProfiledPIDController;
+import edu.wpi.first.math.trajectory.TrapezoidProfile;
+import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
 import lib.BlueShift.control.motor.LazyCANSparkMax;
 
@@ -25,7 +27,7 @@ public class Elevator extends SubsystemBase {
   //setpoint
   private double m_setpoint;
 
-  PIDController pid = new PIDController(0, 0, 0);
+  ProfiledPIDController pid = new ProfiledPIDController(0, 0, 0, new TrapezoidProfile.Constraints(1,10));
 
 
 
@@ -34,15 +36,21 @@ public class Elevator extends SubsystemBase {
     //right
     this.m_rightElevatorMotor = new LazyCANSparkMax(0, MotorType.kBrushless);
     this.m_rightElevatorMotor.setIdleMode(IdleMode.kBrake);
+    this.m_rightElevatorMotor.setSmartCurrentLimit(60);
 
     //left
     this.m_leftElevatorMotor = new LazyCANSparkMax(1, MotorType.kBrushless);
     this.m_leftElevatorMotor.setIdleMode(IdleMode.kBrake);
     this.m_leftElevatorMotor.follow(m_rightElevatorMotor, true);
-
+    this.m_leftElevatorMotor.setSmartCurrentLimit(60);
 
     //encoder
     this.m_encoder = m_rightElevatorMotor.getEncoder();
+    this.m_encoder.setPositionConversionFactor((7.588 * (2*Math.PI)) / 20); // radians to rotations and then rotations to inches / gear ratio
+    this.m_encoder.setVelocityConversionFactor(((7.588 * (2*Math.PI)) / 20)/ 60 ); // position conversion factor / 60 
+    
+    // reset PID
+    this.pid.reset(0);
   }
 
   public double getPosition(){ 
@@ -63,10 +71,13 @@ public class Elevator extends SubsystemBase {
     m_rightElevatorMotor.set(pid.calculate(getPosition(), setPoint(m_setpoint)));
   }
 
-
+  public Command giveSetPoint(double setPoint){
+    return run(() -> setPoint(setPoint)); 
+   }
 
   @Override
   public void periodic() {
     // This method will be called once per scheduler run
+    setSpeed();
   }
 }
